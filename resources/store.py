@@ -1,5 +1,6 @@
 from flask.views import MethodView
 from flask_smorest import Blueprint, abort
+from flask_jwt_extended import jwt_required
 from db import db
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from models import StoreModel
@@ -7,8 +8,9 @@ from schemas import StoreSchema
 
 blp = Blueprint("stores", __name__, description="Operations on stores")
 
-@blp.route("/store/<string:store_id>")
+@blp.route("/store/<int:store_id>")
 class Store(MethodView):
+    @jwt_required()
     @blp.response(200, StoreSchema)
     def get(self, store_id):
         try:
@@ -17,6 +19,7 @@ class Store(MethodView):
         except SQLAlchemyError:
             abort(500, message="An error occurred while fetching the store.")
 
+    @jwt_required(fresh=True)
     def delete(self, store_id):
         try:
             store = StoreModel.query.get_or_404(store_id)
@@ -28,6 +31,7 @@ class Store(MethodView):
 
 @blp.route("/store")
 class StoreList(MethodView):
+    @jwt_required(fresh=True)
     @blp.arguments(StoreSchema)
     @blp.response(201, StoreSchema)
     def post(self, request_data): 
@@ -38,9 +42,10 @@ class StoreList(MethodView):
             return store
         except IntegrityError:
             abort(400, message="A store with that name already exists")
-        except SQLAlchemyError:
-            abort(500, message="An error occurred while inserting the store.")
+        except SQLAlchemyError as e:
+            abort(500, message="An error occurred while inserting the store. error: {}".format(str(e)))
 
+    @jwt_required()
     @blp.response(200, StoreSchema(many=True))
     def get(self):
         try:
